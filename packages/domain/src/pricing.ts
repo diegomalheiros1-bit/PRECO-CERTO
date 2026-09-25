@@ -34,6 +34,9 @@ const normalized = (value: string) => value.normalize('NFD').replace(/[\u0300-\u
 export function searchListings(listings: Listing[], criteria: SearchCriteria): Listing[] {
   const exactSkus = (criteria.skus ?? []).map(normalized).filter(Boolean);
   const names = [criteria.query, ...(criteria.names ?? [])].filter((v): v is string => Boolean(v?.trim())).map(normalized);
+  const mixedTerms = (criteria.terms ?? []).map(normalized).filter(Boolean);
+  const knownSkus = new Set(listings.map(item => normalized(item.sku)));
+  for (const term of mixedTerms) (knownSkus.has(term) ? exactSkus : names).push(term);
   if (!exactSkus.length && !names.length) return [];
   return listings.filter(item => exactSkus.includes(normalized(item.sku)) || names.some(term => normalized(`${item.title} ${item.size} ${item.color}`).includes(term)));
 }

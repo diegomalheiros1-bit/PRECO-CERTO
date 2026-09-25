@@ -7,12 +7,16 @@
 - A busca expande um anúncio `traditional` para mostrar todas as suas variações, mesmo quando só um SKU corresponde ao critério. A interface seleciona ou remove o grupo inteiro. Se a resposta não trouxer o grupo completo e seus IDs, a seleção fica desabilitada.
 - A API reconsulta separadamente os alvos e todas as variações atuais de cada anúncio tradicional envolvido. A composição é delimitada por `accountId`, `sellerId` e ID do anúncio. IDs de variação são comparados como conjuntos: duplicatas, ausências, trocas e acréscimos bloqueiam a operação.
 - Todos os alvos de uma operação recebem o mesmo novo preço. Essa é uma **decisão do Preço Certo**, não uma regra universal do Mercado Livre.
+- O frontend oferece três buscas: SKU exato, nome/modelo e lista mista. Na lista, cada termo que coincide exatamente com um SKU conhecido é tratado como SKU; os demais são candidatos por nome/modelo. Termos podem ser separados por linha, vírgula ou ponto e vírgula.
+- O preço de referência da busca preenche a revisão. Cada User Product liberado pode ter o valor editado por linha; uma edição em anúncio tradicional propaga o mesmo valor para todas as suas variações. Preços divergentes entre os selecionados são exibidos com SKU e valor e impedem a aprovação.
 - Preço deve ser positivo e conter no máximo duas casas decimais. Entradas inválidas não são corrigidas silenciosamente.
 - Promoção ativa, preço automático e migração pendente desabilitam a seleção na busca e bloqueiam a operação se aparecerem na reconsulta. Se uma variação tradicional estiver bloqueada, o grupo inteiro fica indisponível. O bloqueio de promoções é conservador nesta primeira versão.
 
 ## Confirmação e consistência
 
 O navegador mostra a revisão exata e exige confirmação. A API reconsulta o gateway logo antes de executar e compara conta, vendedor, anúncio, ID da variação ou User Product, SKU, estrutura, moeda, estado, preço padrão, promoção, preço automático, título, tamanho, cor e grupo com o snapshot revisado. Qualquer diferença gera `stale_data` e exige nova pesquisa/aprovação. Os bloqueios por condições ativas usam o estado reconsultado, não as flags do navegador. Preços inválidos ou divergentes são recusados novamente no servidor.
+
+A operação visual segue quatro etapas: informar busca e preço de referência; revisar resultados, filtros de seleção e novos preços; aprovar a lista exata com checkbox e confirmação final; consultar resultados por combinação e protocolo. O histórico exibido vem do SQLite, com filtros por resultado e por protocolo, SKU, produto ou conta. Nenhuma importação de planilha é simulada como função ativa.
 
 Cada combinação é identificada por uma chave composta de conta, vendedor, anúncio, estrutura e ID da variação ou User Product. Essa chave relaciona seleção, divergência, resposta do gateway, resultado e histórico. Um problema global aparece em `issues` com `targetKey: null`; uma variação sem problema específico recebe apenas a indicação de que outra bloqueou a operação. Nenhum alvo é enviado ao gateway de atualização quando há bloqueio. A operação só recebe `simulated` quando todos os itens foram simulados; qualquer falha produz `partial_failure`.
 

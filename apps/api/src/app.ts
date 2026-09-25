@@ -9,7 +9,7 @@ import {
 } from '@preco-certo/domain';
 import { HistoryRepository } from './history.js';
 
-const criteriaSchema = z.object({ query: z.string().optional(), skus: z.array(z.string()).optional(), names: z.array(z.string()).optional() });
+const criteriaSchema = z.object({ query: z.string().optional(), skus: z.array(z.string()).optional(), names: z.array(z.string()).optional(), terms: z.array(z.string()).optional() });
 const listingSchema = z.object({
   id: z.string(), variationId: z.string().optional(), userProductId: z.string().optional(),
   accountId: z.string(), sellerId: z.string(), title: z.string(), sku: z.string(),

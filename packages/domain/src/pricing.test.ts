@@ -21,6 +21,11 @@ describe('pesquisa e identidade', () => {
     expect(found.listings.map(x => x.sku)).toEqual(['RT-CL-PT-56', 'RT-CL-PT-58', 'RT-CL-VM-58']);
     expect(found.traditionalGroups[0].variations).toHaveLength(3);
   });
+  it('lista mista encontra SKU exato e nome sem tratar SKU como título parcial', () => {
+    const found = searchListings(listings, { terms: ['RT-CL-PT-56', 'Norisk Force II'] });
+    expect(found.map(item => item.sku)).toEqual(['NRK-FOR-P-PT', 'FORCE-BR-M', 'RT-CL-PT-56']);
+    expect(searchListings(listings, { terms: ['RT-CL-PT'] })).toEqual([]);
+  });
   it('distingue conta, vendedor, estrutura e variação na chave', () => {
     expect(targetKey(listings[3])).not.toBe(targetKey(listings[4]));
     expect(targetKey(listings[3])).not.toBe(targetKey({ ...listings[3], accountId: 'outra' }));

@@ -2,71 +2,205 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { accounts, listings, MockMarketplaceGateway, type SearchResult } from '@preco-certo/domain';
+import { accounts, listings, MockMarketplaceGateway, targetKey, type Listing, type OperationRecord, type SearchCriteria } from '@preco-certo/domain';
 import { api } from './api';
 import { App } from './App';
 
 let container: HTMLDivElement;
 let root: Root;
+let searchSpy: ReturnType<typeof vi.spyOn>;
+const allItems = structuredClone(listings);
+
+function operation(): OperationRecord {
+  return {
+    id: 'demo-protocol-1', createdAt: '2026-09-25T12:00:00.000Z', user: 'operador-teste',
+    criteria: { query: 'Norisk' }, status: 'partial_failure', note: 'simulado; nenhum envio ao Mercado Livre', issues: [],
+    results: [
+      { targetKey: targetKey(listings[0]), status: 'simulated', message: 'simulado; nenhum envio ao Mercado Livre', appliedPrice: null, snapshot: listings[0], intendedPrice: 529.9, percent: 15.22 },
+      { targetKey: targetKey(listings[3]), status: 'blocked', message: 'Dados mudaram', appliedPrice: null, snapshot: listings[3], intendedPrice: 529.9, percent: 6 }
+    ]
+  };
+}
 
 beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+  window.scrollTo = vi.fn();
+  localStorage.clear();
   container = document.createElement('div'); document.body.appendChild(container);
   root = createRoot(container);
   vi.spyOn(api, 'accounts').mockResolvedValue(accounts);
   vi.spyOn(api, 'history').mockResolvedValue([]);
+  searchSpy = vi.spyOn(api, 'search').mockImplementation(criteria => new MockMarketplaceGateway().search(criteria));
 });
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove(); vi.restoreAllMocks();
 });
 
-async function renderAndSearch(response: SearchResult) {
-  vi.spyOn(api, 'search').mockResolvedValue(response);
-  await act(async () => root.render(<App />));
-  const searchButton = [...container.querySelectorAll('button')].find(button => button.textContent === 'Pesquisar')!;
-  await act(async () => searchButton.click());
+async function render() { await act(async () => root.render(<App />)); }
+function button(label: string) {
+  const found = [...container.querySelectorAll('button')].find(element => element.textContent?.trim() === label || element.textContent?.trim().endsWith(label));
+  if (!found) throw new Error(`Botão não encontrado: ${label}`);
+  return found;
 }
-
-function checkbox(sku: string) {
-  return container.querySelector<HTMLInputElement>(`input[aria-label="Selecionar ${sku}"]`)!;
+async function click(label: string) { await act(async () => button(label).click()); }
+async function change(element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')?.set;
+  await act(async () => { setter?.call(element, value); element.dispatchEvent(new Event(element instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true })); });
 }
+async function search() { await click('Buscar e revisar anúncios →'); }
+function checkbox(sku: string) { return container.querySelector<HTMLInputElement>(`input[aria-label="Selecionar ${sku}"]`)!; }
+function groupCheckbox(sku: string) { return container.querySelector<HTMLInputElement>(`input[aria-label="Selecionar grupo MLB-DEMO-200 pela variação ${sku}"]`)!; }
+function priceInput(sku: string) { return container.querySelector<HTMLInputElement>(`input[aria-label="Novo preço de ${sku}"]`)!; }
 
-describe('seleção na interface', () => {
-  it('desabilita itens com promoção, preço automático ou migração', async () => {
-    const response = await new MockMarketplaceGateway().search({ query: 'Capacete Norisk' });
-    await renderAndSearch(response);
-    expect(checkbox('FORCE-BR-M').disabled).toBe(true);
-    expect(checkbox('ROUTE-AZ-58').disabled).toBe(true);
-    expect(checkbox('NF-MIG-GG').disabled).toBe(true);
-    expect(checkbox('NRK-FOR-P-PT').disabled).toBe(false);
-    expect(container.textContent).toContain('Promoção ativa');
+describe('busca e etapas', () => {
+  it('busca por nome e chega à revisão sem seleção automática', async () => {
+    await render(); await search();
+    expect(searchSpy).toHaveBeenCalledWith({ query: 'Capacete Norisk' });
+    expect(container.textContent).toContain('2. Revise os anúncios encontrados');
+    expect(container.textContent).toContain('0 combinação(ões) selecionada(s)');
   });
-  it('seleciona e remove as três variações tradicionais juntas', async () => {
-    const response = await new MockMarketplaceGateway().search({ skus: ['RT-CL-PT-56'] });
-    await renderAndSearch(response);
-    const checks = [...container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
-    expect(checks).toHaveLength(3);
-    await act(async () => checks[0].click());
-    expect(checks.every(input => input.checked)).toBe(true);
-    expect(container.textContent).toContain('3 selecionada(s)');
-    await act(async () => checks[1].click());
-    expect(checks.every(input => !input.checked)).toBe(true);
+  it('busca SKU exato e expande as variações do anúncio tradicional', async () => {
+    await render();
+    await change(container.querySelector<HTMLSelectElement>('#searchMode')!, 'sku');
+    await change(container.querySelector<HTMLInputElement>('#searchInput')!, 'RT-CL-PT-56');
+    await search();
+    expect(searchSpy).toHaveBeenCalledWith({ skus: ['RT-CL-PT-56'] });
+    expect(container.textContent).toContain('RT-CL-VM-58');
   });
-  it('desabilita todo o grupo quando uma variação está bloqueada', async () => {
-    const current = structuredClone(listings);
+  it('busca lista mista separada por linha, vírgula e ponto e vírgula', async () => {
+    await render();
+    await change(container.querySelector<HTMLSelectElement>('#searchMode')!, 'list');
+    await change(container.querySelector<HTMLTextAreaElement>('#searchInput')!, 'RT-CL-PT-56; Norisk Force II,\nRT-CL-PT-56');
+    await search();
+    expect(searchSpy).toHaveBeenCalledWith({ terms: ['RT-CL-PT-56', 'Norisk Force II'] });
+    expect(container.textContent).toContain('NRK-FOR-P-PT');
+    expect(container.textContent).toContain('RT-CL-VM-58');
+  });
+  it('bloqueia busca vazia e preço de referência inválido', async () => {
+    await render();
+    await change(container.querySelector<HTMLInputElement>('#searchInput')!, ' ');
+    await search();
+    expect(searchSpy).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Informe um SKU');
+    await change(container.querySelector<HTMLInputElement>('#searchInput')!, 'Norisk');
+    await change(container.querySelector<HTMLInputElement>('#referencePrice')!, '0');
+    await search();
+    expect(searchSpy).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('preço de referência');
+  });
+});
+
+describe('revisão de anúncios', () => {
+  it('seleciona por conta, todos os liberados e limpa a seleção', async () => {
+    const current = structuredClone(allItems);
+    current[1].promotionActive = false;
+    searchSpy.mockImplementation((criteria: SearchCriteria) => new MockMarketplaceGateway(current).search(criteria));
+    await render(); await search();
+    await change(container.querySelector<HTMLSelectElement>('#selectionAccount')!, 'acc-centro');
+    await click('Selecionar conta');
+    expect(container.textContent).toContain('1 combinação(ões) selecionada(s)');
+    await click('Selecionar todos os liberados');
+    expect(container.textContent).toContain('5 combinação(ões) selecionada(s)');
+    await click('Limpar seleção');
+    expect(container.textContent).toContain('0 combinação(ões) selecionada(s)');
+  });
+  it('seleciona e edita todo o grupo tradicional por uma variação', async () => {
+    await render(); await search();
+    await act(async () => groupCheckbox('RT-CL-PT-56').click());
+    expect(['RT-CL-PT-56', 'RT-CL-PT-58', 'RT-CL-VM-58'].every(sku => groupCheckbox(sku).checked)).toBe(true);
+    await change(priceInput('RT-CL-PT-56'), '600,00');
+    expect(['RT-CL-PT-56', 'RT-CL-PT-58', 'RT-CL-VM-58'].map(sku => priceInput(sku).value)).toEqual(['600,00', '600,00', '600,00']);
+  });
+  it('desabilita seleção e edição de itens bloqueados e de grupo com integrante bloqueado', async () => {
+    const current = structuredClone(allItems);
     current[4].automaticPricing = true;
-    const response = await new MockMarketplaceGateway(current).search({ skus: ['RT-CL-PT-56'] });
-    await renderAndSearch(response);
-    const checks = [...container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
-    expect(checks).toHaveLength(3);
-    expect(checks.every(input => input.disabled)).toBe(true);
-    expect(container.textContent).toContain('RT-CL-PT-58');
+    searchSpy.mockImplementation((criteria: SearchCriteria) => new MockMarketplaceGateway(current).search(criteria));
+    await render(); await search();
+    expect(checkbox('FORCE-BR-M').disabled).toBe(true);
+    expect(priceInput('FORCE-BR-M').disabled).toBe(true);
+    expect(groupCheckbox('RT-CL-PT-56').disabled).toBe(true);
+    expect(priceInput('RT-CL-VM-58').disabled).toBe(true);
   });
-  it('desabilita busca parcial sem todas as variações visíveis', async () => {
-    const complete = await new MockMarketplaceGateway().search({ skus: ['RT-CL-PT-56'] });
-    await renderAndSearch({ ...complete, listings: [complete.listings[0]] });
-    expect(container.querySelector<HTMLInputElement>('input[type="checkbox"]')?.disabled).toBe(true);
-    expect(container.textContent).toContain('Grupo tradicional incompleto');
+  it('mostra reajuste positivo e negativo por linha', async () => {
+    await render(); await search();
+    const row = priceInput('NRK-FOR-P-PT').closest('tr')!;
+    expect(row.querySelector('.delta-up')?.textContent).toContain('+15,22%');
+    await change(priceInput('NRK-FOR-P-PT'), '400,00');
+    expect(row.querySelector('.delta-down')?.textContent).toContain('-13,02%');
+  });
+  it('impede avanço com preços divergentes e mostra SKU e valor', async () => {
+    await render(); await search();
+    await act(async () => checkbox('NRK-FOR-P-PT').click());
+    await act(async () => groupCheckbox('RT-CL-PT-56').click());
+    await change(priceInput('NRK-FOR-P-PT'), '600,00');
+    await change(priceInput('RT-CL-PT-56'), '500,00');
+    await click('Continuar para aprovação →');
+    expect(container.textContent).toContain('2. Revise os anúncios encontrados');
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('NRK-FOR-P-PT: 600,00');
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('RT-CL-PT-56: 500,00');
+  });
+  it('exige seleção e conserva preço inválido para correção na revisão', async () => {
+    await render(); await search();
+    await click('Continuar para aprovação →');
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Selecione ao menos uma');
+    await act(async () => checkbox('NRK-FOR-P-PT').click());
+    await change(priceInput('NRK-FOR-P-PT'), '12,345');
+    await click('Continuar para aprovação →');
+    expect(container.textContent).toContain('2. Revise os anúncios encontrados');
+    expect(priceInput('NRK-FOR-P-PT').value).toBe('12,345');
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('preço inválido');
+  });
+});
+
+describe('aprovação, resultado, histórico e tema', () => {
+  it('exige checkbox e confirmação final, preserva seleção ao voltar e mostra protocolo', async () => {
+    const record = { ...operation(), status: 'simulated' as const, results: [operation().results[0]] };
+    const executeSpy = vi.spyOn(api, 'execute').mockResolvedValue({ operation: record });
+    await render(); await search();
+    await act(async () => checkbox('NRK-FOR-P-PT').click());
+    await click('Continuar para aprovação →');
+    expect(container.textContent).toContain('3. Aprovação final');
+    await click('← Voltar para revisão');
+    expect(checkbox('NRK-FOR-P-PT').checked).toBe(true);
+    await click('Continuar para aprovação →');
+    await click('Confirmar simulação ✓');
+    expect(executeSpy).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Marque a confirmação');
+    await act(async () => container.querySelector<HTMLInputElement>('input[aria-label="Confirmo que revisei os anúncios"]')!.click());
+    await click('Confirmar simulação ✓');
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    await click('Confirmar na demonstração');
+    expect(executeSpy).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('demo-protocol-1');
+    expect(container.textContent).toContain('não aplicado');
+  });
+  it('filtra histórico SQLite por resultado e texto e abre detalhes', async () => {
+    vi.mocked(api.history).mockResolvedValue([operation()]);
+    await render(); await click('Histórico');
+    expect(container.querySelectorAll('.history-table tbody tr')).toHaveLength(2);
+    await change(container.querySelector<HTMLSelectElement>('#historyFilter')!, 'blocked');
+    expect(container.querySelectorAll('.history-table tbody tr')).toHaveLength(1);
+    expect(container.textContent).toContain('RT-CL-PT-56');
+    await change(container.querySelector<HTMLInputElement>('#historySearch')!, 'NRK-FOR-P-PT');
+    expect(container.textContent).toContain('Nenhum registro encontrado');
+    await change(container.querySelector<HTMLInputElement>('#historySearch')!, 'Moto Norte');
+    expect(container.querySelectorAll('.history-table tbody tr')).toHaveLength(1);
+    await click('Detalhes');
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain('não aplicado');
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain('VAR-201');
+  });
+  it('inicia em tema claro e salva a preferência escura', async () => {
+    await render();
+    const picker = container.querySelector<HTMLSelectElement>('#themePicker')!;
+    expect(picker.value).toBe('light');
+    await change(picker, 'dark');
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(localStorage.getItem('theme')).toBe('dark');
+  });
+  it('respeita preferência de tema salva', async () => {
+    localStorage.setItem('theme', 'dark');
+    await render();
+    expect(container.querySelector<HTMLSelectElement>('#themePicker')!.value).toBe('dark');
   });
 });

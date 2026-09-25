@@ -155,4 +155,10 @@ describe('POST /api/operations/execute', () => {
     expect(body).not.toContain('token');
     delete process.env.ML_CLIENT_SECRET;
   });
+  it('busca lista mista de SKU exato e nome pelo endpoint', async () => {
+    const { app } = setup();
+    const response = await app.inject({ method: 'POST', url: '/api/search', payload: { terms: ['RT-CL-PT-56', 'Norisk Force II'] } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().listings.map((item: Listing) => item.sku)).toEqual(expect.arrayContaining(['RT-CL-PT-56', 'RT-CL-PT-58', 'RT-CL-VM-58', 'NRK-FOR-P-PT', 'FORCE-BR-M']));
+  });
 });

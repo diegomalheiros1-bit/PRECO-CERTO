@@ -21,7 +21,9 @@ npm run dev
 
 No macOS/Linux, substitua `copy` por `cp`. Abra `http://127.0.0.1:5173`. A API fica em `http://127.0.0.1:3333`; dados são criados em `data/preco-certo.sqlite`.
 
-Pesquise `Capacete Norisk`. A massa inclui sete combinações, três contas DEMO, User Products, um grupo tradicional com três variações e itens bloqueados por promoção, preço automático e migração pendente. A busca por um SKU de um anúncio tradicional também exibe as demais variações do mesmo anúncio, para que o grupo seja selecionado por inteiro.
+Na etapa **Informar alterações**, pesquise `Capacete Norisk` e informe um preço de referência. A massa inclui sete combinações, três contas DEMO, User Products, um grupo tradicional com três variações e itens bloqueados por promoção, preço automático e migração pendente. Também é possível buscar por SKU exato ou por uma lista separada por linhas, vírgulas ou ponto e vírgula. Na lista, SKUs existentes são comparados exatamente; os demais termos buscam nome/modelo. Um SKU de anúncio tradicional exibe todas as variações do grupo.
+
+Em **Revisar anúncios**, selecione combinações liberadas individualmente, por conta ou todas. O preço pode ser editado por linha; uma alteração em anúncio tradicional ajusta todas as suas variações. O avanço exige ao menos um alvo e um novo preço válido e uniforme. Em **Aprovação final**, confira os dados e marque o checkbox antes da confirmação final. **Resultado** mostra o protocolo e o estado de cada combinação, com acesso ao histórico local.
 
 ## Verificação
 
@@ -32,7 +34,7 @@ npm run build
 
 ## Estrutura
 
-- `apps/web`: React/Vite, fluxo e temas claro/escuro.
+- `apps/web`: React/Vite, menu lateral, fluxo em quatro etapas, revisão por linha, histórico filtrável e temas claro/escuro.
 - `apps/api`: Fastify e repositório SQLite.
 - `packages/domain`: regras puras, tipos e gateways testáveis.
 - `docs/REGRAS.md`: decisões de produto e segurança.
@@ -44,6 +46,7 @@ npm run build
 - Antes da simulação, a API reconsulta os alvos e todas as variações dos anúncios tradicionais selecionados. Ela compara identificadores e condições atualizadas e bloqueia mudanças que exijam nova revisão.
 - O preço pretendido aparece separado do preço aplicado. Na demonstração, o preço aplicado é sempre `não aplicado`.
 - Bloqueios e falhas são associados à combinação exata; erros globais ficam separados no histórico. Um bloqueio impede a chamada de atualização do gateway.
+- A interface começa em tema claro, respeita a preferência de tema salva e adapta a revisão para telas estreitas sem cobrir a tabela. A importação de planilha aparece desabilitada como função em desenvolvimento.
 
 ## Limitações atuais
 

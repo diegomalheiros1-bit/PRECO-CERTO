@@ -12,7 +12,7 @@ export interface Listing {
   groupId?: string; currency: 'BRL'; price: number; state: ListingState;
   promotionActive: boolean; automaticPricing: boolean;
 }
-export interface SearchCriteria { query?: string; skus?: string[]; names?: string[] }
+export interface SearchCriteria { query?: string; skus?: string[]; names?: string[]; terms?: string[] }
 export interface PriceTarget { snapshot: Listing; newPrice: number }
 export interface TraditionalGroup { accountId: string; sellerId: string; itemId: string; variations: Listing[] }
 export interface SearchResult { listings: Listing[]; traditionalGroups: TraditionalGroup[] }
