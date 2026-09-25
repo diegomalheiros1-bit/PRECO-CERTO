@@ -1,0 +1,14 @@
+{
+  "name": "preco-certo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "concurrently -n API,WEB -c yellow,cyan \"npm run dev -w @preco-certo/api\" \"npm run dev -w @preco-certo/web\"",
+    "build": "npm run build -w @preco-certo/domain && npm run build -w @preco-certo/api && npm run build -w @preco-certo/web",
+    "test": "npm run build -w @preco-certo/domain && npm run test -w @preco-certo/domain && npm run test -w @preco-certo/api && npm run test -w @preco-certo/web",
+    "start": "npm run start -w @preco-certo/api"
+  },
+  "devDependencies": {"concurrently": "^9.2.1"},
+  "engines": {"node": ">=20"}
+}
