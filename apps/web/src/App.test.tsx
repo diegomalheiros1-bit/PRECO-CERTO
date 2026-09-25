@@ -129,7 +129,7 @@ describe('revisão de anúncios', () => {
     await change(priceInput('NRK-FOR-P-PT'), '400,00');
     expect(row.querySelector('.delta-down')?.textContent).toContain('-13,02%');
   });
-  it('impede avanço com preços divergentes e mostra SKU e valor', async () => {
+  it('mostra um único aviso na revisão, destaca linhas e remove o erro após correção', async () => {
     await render(); await search();
     await act(async () => checkbox('NRK-FOR-P-PT').click());
     await act(async () => groupCheckbox('RT-CL-PT-56').click());
@@ -137,8 +137,28 @@ describe('revisão de anúncios', () => {
     await change(priceInput('RT-CL-PT-56'), '500,00');
     await click('Continuar para aprovação →');
     expect(container.textContent).toContain('2. Revise os anúncios encontrados');
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain('NRK-FOR-P-PT: 600,00');
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain('RT-CL-PT-56: 500,00');
+    expect(container.querySelectorAll('[role="alert"]')).toHaveLength(1);
+    expect(container.querySelector('.error-banner')).toBeNull();
+    const notice = container.querySelector('.review-top .mismatch-notice')!;
+    expect(notice.textContent).toContain('Capacete Norisk Force II');
+    expect(notice.textContent).toContain('NRK-FOR-P-PT');
+    expect(notice.textContent).toContain('R$ 600,00');
+    expect(notice.textContent).toContain('Capacete Norisk Route Classic');
+    expect(notice.textContent).toContain('RT-CL-PT-56');
+    expect(notice.textContent).toContain('R$ 500,00');
+    expect(checkbox('NRK-FOR-P-PT').checked).toBe(true);
+    expect(groupCheckbox('RT-CL-PT-56').checked).toBe(true);
+    expect(priceInput('NRK-FOR-P-PT').value).toBe('600,00');
+    expect(priceInput('RT-CL-PT-56').value).toBe('500,00');
+    expect(container.querySelectorAll('.price-mismatch')).toHaveLength(4);
+    await change(priceInput('NRK-FOR-P-PT'), '500,00');
+    expect(container.querySelectorAll('[role="alert"]')).toHaveLength(0);
+    expect(container.querySelectorAll('.price-mismatch')).toHaveLength(0);
+    await click('Continuar para aprovação →');
+    expect(container.textContent).toContain('3. Aprovação final');
+    await click('← Voltar para revisão');
+    expect(container.querySelectorAll('[role="alert"]')).toHaveLength(0);
+    expect(container.querySelectorAll('.price-mismatch')).toHaveLength(0);
   });
   it('exige seleção e conserva preço inválido para correção na revisão', async () => {
     await render(); await search();
@@ -154,6 +174,22 @@ describe('revisão de anúncios', () => {
 });
 
 describe('aprovação, resultado, histórico e tema', () => {
+  it('abre contas fictícias pelo menu e por Gerenciar sem sugerir conexão real', async () => {
+    await render();
+    await click('Contas conectadas');
+    expect(container.textContent).toContain('Nenhuma conta real está conectada');
+    expect(container.textContent).toContain('não há conexão ativa com o Mercado Livre');
+    expect(container.querySelectorAll('.account-manage')).toHaveLength(3);
+    expect(container.textContent).toContain('Moto Norte (DEMO)');
+    expect(container.textContent).toContain('Capacetes Centro (DEMO)');
+    expect(container.textContent).toContain('Rota Sul (DEMO)');
+    expect(container.textContent).toContain('Disponível no simulador');
+    expect(container.textContent).toContain('Indisponível no simulador');
+    expect([...container.querySelectorAll('.account-tools button')].every(button => (button as HTMLButtonElement).disabled)).toBe(true);
+    await click('Atualizar preços');
+    await click('Gerenciar');
+    expect(container.textContent).toContain('Gerenciamento de contas');
+  });
   it('exige checkbox e confirmação final, preserva seleção ao voltar e mostra protocolo', async () => {
     const record = { ...operation(), status: 'simulated' as const, results: [operation().results[0]] };
     const executeSpy = vi.spyOn(api, 'execute').mockResolvedValue({ operation: record });

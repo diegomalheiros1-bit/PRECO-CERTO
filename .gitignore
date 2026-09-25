@@ -6,4 +6,5 @@ data/
 coverage/
 *.sqlite*
 *.tsbuildinfo
+artifacts/visual-qa/
 
