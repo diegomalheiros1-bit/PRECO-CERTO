@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'sha256-T3riUwB3a+aFlo16rm3BMvv6KpDV6MWjmyBxIM7argE='; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; connect-src 'none'; img-src 'none'"
+    />
+    <title>Retorno do Mercado Livre | Preço Certo</title>
+    <style>
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f5f7fb; color: #17223b; font: 16px/1.5 system-ui, sans-serif; }
+      main { width: min(34rem, calc(100% - 2rem)); box-sizing: border-box; padding: 2rem; background: white; border: 1px solid #dbe2ed; border-radius: 1rem; box-shadow: 0 12px 36px #17223b12; }
+      h1 { margin: 0 0 .75rem; font-size: 1.5rem; }
+      p { margin: 0; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Retorno do Mercado Livre</h1>
+      <p id="status" role="status">Encaminhando a autorização ao Preço Certo nesta máquina…</p>
+    </main>
+    <script>
+      (() => {
+        const status = document.getElementById('status');
+        const incoming = new URLSearchParams(window.location.search);
+        const codes = incoming.getAll('code');
+        const states = incoming.getAll('state');
+        const errors = incoming.getAll('error');
+
+        // Remove o código da barra de endereço antes de qualquer outra ação.
+        window.history.replaceState(null, '', window.location.pathname);
+
+        const success = codes.length === 1 && codes[0] && states.length === 1 && states[0] && errors.length === 0;
+        const failure = errors.length === 1 && errors[0] && codes.length === 0 && states.length <= 1;
+        if (!success && !failure) {
+          status.textContent = 'Retorno inválido ou incompleto. Volte ao Preço Certo e inicie a autorização novamente.';
+          return;
+        }
+
+        const callback = new URL('http://127.0.0.1:3333/oauth/mercadolivre/callback');
+        if (success) {
+          callback.searchParams.set('code', codes[0]);
+          callback.searchParams.set('state', states[0]);
+        } else {
+          callback.searchParams.set('error', errors[0]);
+          if (states.length === 1) callback.searchParams.set('state', states[0]);
+          const descriptions = incoming.getAll('error_description');
+          if (descriptions.length === 1) callback.searchParams.set('error_description', descriptions[0]);
+        }
+
+        window.location.replace(callback.href);
+      })();
+    </script>
+  </body>
+</html>

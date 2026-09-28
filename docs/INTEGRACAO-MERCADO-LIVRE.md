@@ -13,3 +13,15 @@ Próxima etapa concreta:
 
 Credenciais, callback válido e usuários de teste são dependências externas pendentes. Nenhuma escrita real deve ser ativada para validar a aplicação local.
 
+## Callback HTTPS via GitHub Pages
+
+O portal do Mercado Livre não aceita `localhost` como URI de redirecionamento. Cadastre exatamente:
+
+`https://diegomalheiros1-bit.github.io/PRECO-CERTO/oauth-callback/`
+
+O workflow `Publicar callback OAuth` publica somente a página estática de `oauth-callback-site/index.html` no GitHub Pages, usando GitHub Actions como origem. A aplicação continua local: a página recebe o retorno OAuth e redireciona o navegador para `http://127.0.0.1:3333/oauth/mercadolivre/callback` nesta máquina. Ela não armazena credenciais nem faz a troca do código.
+
+**Limite de privacidade:** os parâmetros `code` e `state` chegam primeiro à hospedagem do GitHub Pages antes de seguirem ao backend local. Eles podem constar em registros de infraestrutura do GitHub. A página remove a query da barra de endereço e não carrega recursos externos, mas isso não elimina a passagem pelo GitHub. Não coloque Client Secret, tokens ou outros segredos na URL ou neste repositório.
+
+O callback do backend **ainda precisa ser implementado**. Antes de considerar o OAuth funcional, ele deverá validar `state` e PKCE, trocar o `code` imediatamente e de forma única, vincular os tokens ao `seller_id`, proteger tokens em repouso e não registrar parâmetros sensíveis. Se a aplicação local não estiver rodando, a navegação para `127.0.0.1:3333` falhará; inicie um novo fluxo OAuth em vez de reutilizar o código. A escrita de preços reais permanece desabilitada (`ML_WRITE_ENABLED=false`) e o gateway ativo continua fictício.
+
