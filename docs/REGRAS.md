@@ -26,7 +26,7 @@ Cada combinação é identificada por uma chave composta de conta, vendedor, an�
 - O frontend não contém client secret, tokens nem chave de criptografia.
 - Logs do Fastify ocultam cabeçalhos de autorização, cookies e campos de token/segredo.
 - `MercadoLivreGateway` existe como limite de integração, mas falha de forma segura. Escrita real não está implementada e `ML_WRITE_ENABLED=false` é o padrão.
-- OAuth deverá associar cada token ao `seller_id`, cifrar tokens em repouso e tratar renovação/revogação. O callback público/HTTPS, se exigido, será documentado; nenhum túnel é aberto automaticamente.
+- O OAuth opcional de teste associa tokens ao `seller_id` permitido, cifra-os em repouso e usa callback HTTPS público documentado. Renovação e revogação ainda não estão implementadas; nenhum túnel é aberto automaticamente. Os tokens não alimentam o gateway fictício.
 - Antes de qualquer escrita, a documentação oficial atual do endpoint deverá ser verificada. A existência de consulta em `/prices` não será interpretada como permissão de edição.
 
 ## Persistência

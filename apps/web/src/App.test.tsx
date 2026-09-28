@@ -30,6 +30,7 @@ beforeEach(() => {
   root = createRoot(container);
   vi.spyOn(api, 'accounts').mockResolvedValue(accounts);
   vi.spyOn(api, 'history').mockResolvedValue([]);
+  vi.spyOn(api, 'oauthStatus').mockResolvedValue({ enabled: false, mode: 'test-only', realWrites: false, testAccounts: [] });
   searchSpy = vi.spyOn(api, 'search').mockImplementation(criteria => new MockMarketplaceGateway().search(criteria));
 });
 afterEach(async () => {
@@ -178,7 +179,8 @@ describe('aprovação, resultado, histórico e tema', () => {
     await render();
     await click('Contas conectadas');
     expect(container.textContent).toContain('Nenhuma conta real está conectada');
-    expect(container.textContent).toContain('não há conexão ativa com o Mercado Livre');
+    expect(container.textContent).toContain('OAuth de teste desabilitado');
+    expect((button('Autorizar vendedor de teste') as HTMLButtonElement).disabled).toBe(true);
     expect(container.querySelectorAll('.account-manage')).toHaveLength(3);
     expect(container.textContent).toContain('Moto Norte (DEMO)');
     expect(container.textContent).toContain('Capacetes Centro (DEMO)');
@@ -189,6 +191,14 @@ describe('aprovação, resultado, histórico e tema', () => {
     await click('Atualizar preços');
     await click('Gerenciar');
     expect(container.textContent).toContain('Gerenciamento de contas');
+  });
+  it('separa vendedores OAuth de teste das três contas DEMO', async () => {
+    vi.mocked(api.oauthStatus).mockResolvedValue({ enabled: true, mode: 'test-only', realWrites: false, testAccounts: [{ sellerId: '123', expiresAt: '2026-09-25T12:00:00.000Z' }] });
+    await render(); await click('Contas conectadas');
+    expect((button('Autorizar vendedor de teste') as HTMLButtonElement).disabled).toBe(false);
+    expect(container.textContent).toContain('Vendedor de teste 123');
+    expect(container.textContent).toContain('nenhuma operação de preço usa esses tokens');
+    expect(container.querySelectorAll('.account-manage')).toHaveLength(4);
   });
   it('exige checkbox e confirmação final, preserva seleção ao voltar e mostra protocolo', async () => {
     const record = { ...operation(), status: 'simulated' as const, results: [operation().results[0]] };

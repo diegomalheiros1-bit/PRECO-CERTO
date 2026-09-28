@@ -38,7 +38,7 @@ npm run build
 - `apps/api`: Fastify e repositório SQLite.
 - `packages/domain`: regras puras, tipos e gateways testáveis.
 - `docs/REGRAS.md`: decisões de produto e segurança.
-- `docs/INTEGRACAO-MERCADO-LIVRE.md`: fronteira e próxima etapa da integração.
+- `docs/INTEGRACAO-MERCADO-LIVRE.md`: callback OAuth de teste, configuração local e limites da integração.
 
 ## Garantias da simulação
 
@@ -50,10 +50,10 @@ npm run build
 
 ## Limitações atuais
 
-- Apenas gateway fictício; OAuth e leitura real dependem de credenciais e usuários de teste.
+- O gateway de contas, anúncios e preços é fictício. O callback OAuth existe como recurso opcional para vendedores de teste; depende de credenciais locais e não habilita leitura ou escrita real.
 - Nenhum endpoint de escrita real foi implementado ou chamado.
 - O usuário responsável é local e configurável por `APP_USER`; ainda não há autenticação multiusuário.
-- O banco local não é cifrado. Tokens futuros exigirão proteção em repouso separada antes de serem armazenados.
+- O histórico no banco local não é cifrado. Tokens OAuth de teste são cifrados separadamente em repouso; renovação e revogação ainda não estão implementadas.
 - Ainda não há sessão de usuário ou assinatura do snapshot aprovado. O gateway real deverá fornecer leitura completa e atualizada de grupos antes de qualquer escrita futura.
 
 Consulte [.env.example](.env.example) para configuração sem segredos e [docs/REGRAS.md](docs/REGRAS.md) para as garantias da operação.
