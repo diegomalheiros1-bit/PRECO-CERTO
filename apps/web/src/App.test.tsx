@@ -30,7 +30,7 @@ beforeEach(() => {
   root = createRoot(container);
   vi.spyOn(api, 'accounts').mockResolvedValue(accounts);
   vi.spyOn(api, 'history').mockResolvedValue([]);
-  vi.spyOn(api, 'oauthStatus').mockResolvedValue({ enabled: false, mode: 'test-only', realWrites: false, testAccounts: [] });
+  vi.spyOn(api, 'oauthStatus').mockResolvedValue({ enabled: false, readEnabled: false, mode: 'test-only', realWrites: false, testAccounts: [] });
   searchSpy = vi.spyOn(api, 'search').mockImplementation(criteria => new MockMarketplaceGateway().search(criteria));
 });
 afterEach(async () => {
@@ -193,7 +193,7 @@ describe('aprovação, resultado, histórico e tema', () => {
     expect(container.textContent).toContain('Gerenciamento de contas');
   });
   it('separa vendedores OAuth de teste das três contas DEMO', async () => {
-    vi.mocked(api.oauthStatus).mockResolvedValue({ enabled: true, mode: 'test-only', realWrites: false, testAccounts: [{ sellerId: '123', expiresAt: '2026-09-25T12:00:00.000Z' }] });
+    vi.mocked(api.oauthStatus).mockResolvedValue({ enabled: true, readEnabled: true, mode: 'test-only', realWrites: false, testAccounts: [{ sellerId: '123', expiresAt: '2026-09-25T12:00:00.000Z' }] });
     await render(); await click('Contas conectadas');
     expect((button('Autorizar vendedor de teste') as HTMLButtonElement).disabled).toBe(false);
     expect(container.textContent).toContain('Vendedor de teste 123');

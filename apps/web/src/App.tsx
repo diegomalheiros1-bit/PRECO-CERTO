@@ -3,7 +3,7 @@ import {
   parsePrice, percentChange, selectionAvailability, targetKey,
   type Account, type Listing, type OperationRecord, type SearchCriteria, type SearchResult
 } from '@preco-certo/domain';
-import { api, type OAuthStatus } from './api';
+import { api, type OAuthStatus, type TestReadResult } from './api';
 import { buildSearchCriteria, eligibleKeys, reviewPriceIssues, updateGroupPrice, type PriceInputs, type SearchMode } from './workflow';
 
 type View = 'prices' | 'history' | 'accounts';
@@ -23,6 +23,9 @@ export function App() {
   const [step, setStep] = useState<Step>(1);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
+  const [testRead, setTestRead] = useState<TestReadResult | null>(null);
+  const [testReadError, setTestReadError] = useState('');
+  const [testReadLoading, setTestReadLoading] = useState(false);
   const [history, setHistory] = useState<OperationRecord[]>([]);
   const [historyFilter, setHistoryFilter] = useState('all');
   const [historyQuery, setHistoryQuery] = useState('');
@@ -70,6 +73,13 @@ export function App() {
       const { authorizationUrl } = await api.startOAuth();
       window.location.assign(authorizationUrl);
     } catch (cause) { setError((cause as Error).message); }
+  }
+
+  async function checkTestSeller(sellerId: string) {
+    setTestRead(null); setTestReadError(''); setTestReadLoading(true);
+    try { setTestRead(await api.testRead(sellerId)); }
+    catch (cause) { setTestReadError((cause as Error).message); }
+    finally { setTestReadLoading(false); }
   }
 
   async function search() {
@@ -219,6 +229,16 @@ export function App() {
         {view === 'history' && <><div className="title-row"><div><div className="eyebrow">Auditoria</div><h1 className="title">Histórico de alterações</h1><p className="subtitle">Consulte protocolos, responsáveis, combinações e resultados persistidos no SQLite.</p></div><span className="demo-tag">● Somente simulações locais</span></div><article className="card"><div className="card-head"><div><h2 className="card-title">Atividades recentes</h2><p className="card-desc">Resultados individuais das operações registradas nesta máquina.</p></div><button className="btn small" onClick={() => api.history().then(setHistory).catch(e => setError(e.message))}>Atualizar</button></div><div className="card-body history-filters"><div><label className="label" htmlFor="historyFilter">Filtrar por resultado</label><select id="historyFilter" className="input" value={historyFilter} onChange={event => setHistoryFilter(event.target.value)}><option value="all">Todos os resultados</option><option value="simulated">Simulados</option><option value="blocked">Bloqueados</option><option value="failed">Falhas</option></select></div><div><label className="label" htmlFor="historySearch">Buscar protocolo, SKU, produto ou conta</label><input id="historySearch" className="input" value={historyQuery} onChange={event => setHistoryQuery(event.target.value)} placeholder="Ex.: RT-CL-PT-56"/></div></div><div className="table-wrap"><table className="table history-table"><thead><tr><th>Data / protocolo</th><th>Conta</th><th>Produto / SKU</th><th>Anterior</th><th>Pretendido</th><th>Reajuste</th><th>Resultado</th><th>Responsável</th><th></th></tr></thead><tbody>{visibleHistory.map(({ operation, result: entry }, index) => <tr key={`${operation.id}:${entry.targetKey ?? targetKey(entry.snapshot)}:${index}`}><td>{new Date(operation.createdAt).toLocaleString('pt-BR')}<div className="sub protocol">{operation.id}</div></td><td>{accountName(entry.snapshot)}</td><td><div className="product">{entry.snapshot.title}</div><code className="sku">{entry.snapshot.sku}</code></td><td>{money(entry.snapshot.price)}</td><td className="new-price">{money(entry.intendedPrice)}</td><td>{percent(entry.snapshot.price, entry.intendedPrice)}</td><td><span className={`pill ${entry.status === 'simulated' ? 'ok' : 'lock'}`}>{statusLabel(entry.status)}</span></td><td>{operation.user}</td><td><button className="btn small" onClick={() => setHistoryDetail({ operation, result: entry })}>Detalhes</button></td></tr>)}{!visibleHistory.length && <tr><td colSpan={9} className="empty">Nenhum registro encontrado para este filtro.</td></tr>}</tbody></table></div><div className="card-body"><span className="tiny">Histórico local em SQLite. Nenhum preço foi aplicado no Mercado Livre.</span></div></article></>}
 
         {view === 'accounts' && <><div className="title-row"><div><div className="eyebrow">Acessos e permissões</div><h1 className="title">Gerenciamento de contas</h1><p className="subtitle">As três contas abaixo são fictícias e usadas somente na simulação de preços.</p></div><button className="btn primary" disabled={!oauthStatus?.enabled} onClick={authorizeTestSeller} title={oauthStatus?.enabled ? 'Somente vendedores de teste permitidos' : 'Habilite o OAuth de teste no backend'}>＋ Autorizar vendedor de teste</button></div><div className="notice info"><span>🔐</span><div>{oauthStatus?.enabled ? 'OAuth de teste habilitado. A autorização não conecta estas contas DEMO nem ativa leitura ou escrita de anúncios reais.' : 'OAuth de teste desabilitado. Nenhuma conta real está conectada; configure o backend local para testar a autorização.'}</div></div><article className="card"><div className="card-head"><div><h2 className="card-title">Contas de demonstração</h2><p className="card-desc">{accounts.length} contas fictícias · nenhuma conexão real destas contas</p></div><span className="pill ok">DEMO</span></div><div className="card-body"><div className="account-list">{accounts.map(account => <div className="account account-manage" key={account.id}><div className="account-name"><span className="shop-icon">▣</span><div><strong>{account.nickname}</strong><div className="sub">Vendedor ID fictício: {account.sellerId} · Brasil</div></div></div><div className="account-tools"><span className="connected">{account.connected ? 'Disponível no simulador' : 'Indisponível no simulador'}</span><button className="btn small" disabled>Reautorizar</button><button className="btn small" disabled>Desconectar</button></div></div>)}</div><div className="notice warn"><span>ⓘ</span><div>Os estados acima pertencem à massa fictícia. Ações de autorização e revogação dessas contas não estão disponíveis.</div></div></div></article><article className="card"><div className="card-head"><div><h2 className="card-title">Vendedores de teste autorizados</h2><p className="card-desc">Separados das contas DEMO; nenhuma operação de preço usa esses tokens.</p></div><button className="btn small" onClick={() => api.oauthStatus().then(setOauthStatus).catch(e => setError(e.message))}>Atualizar</button></div><div className="card-body"><div className="account-list">{oauthStatus?.testAccounts.length ? oauthStatus.testAccounts.map(account => <div className="account account-manage" key={account.sellerId}><div className="account-name"><span className="shop-icon">🔒</span><div><strong>Vendedor de teste {account.sellerId}</strong><div className="sub">Token expira em {new Date(account.expiresAt).toLocaleString('pt-BR')}</div></div></div><span className="connected">OAuth de teste</span></div>) : <p className="hint">Nenhum vendedor de teste autorizado nesta máquina.</p>}</div></div></article></>}
+        {view === 'accounts' && oauthStatus?.testAccounts.length ? <article className="card">
+          <div className="card-head"><div><h2 className="card-title">Teste de API somente leitura</h2><p className="card-desc">Consulta a identidade e até 20 IDs de anúncios do vendedor de teste. Não altera preços nem alimenta o simulador.</p></div></div>
+          <div className="card-body"><div className="account-list">{oauthStatus.testAccounts.map(account =>
+            <div className="account test-read-row" key={account.sellerId}><span>Vendedor {account.sellerId}</span><button className="btn small" disabled={!oauthStatus.readEnabled || testReadLoading} onClick={() => checkTestSeller(account.sellerId)}>{testReadLoading ? 'Consultando...' : 'Testar leitura'}</button></div>
+          )}</div>
+          {!oauthStatus.readEnabled && <p className="hint">Para habilitar a consulta local, defina ML_READ_ENABLED=true no .env e reinicie o backend.</p>}
+          {testReadError && <div className="notice warn" role="alert">{testReadError}</div>}
+          {testRead && <div className="notice info" role="status"><div><strong>{testRead.nickname || testRead.sellerId}</strong>: {testRead.total} anúncio(s) encontrado(s). {testRead.itemIds.length ? `Primeiros IDs: ${testRead.itemIds.join(', ')}` : 'Nenhum anúncio publicado para este vendedor.'}</div></div>}
+          </div>
+        </article> : null}
       </main>
     </div>
 

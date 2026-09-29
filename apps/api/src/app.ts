@@ -8,7 +8,7 @@ import {
   type PriceTarget, type SearchCriteria, type ValidationIssue
 } from '@preco-certo/domain';
 import { HistoryRepository } from './history.js';
-import { MercadoLivreOAuth, oauthConfigFromEnv } from './oauth.js';
+import { MercadoLivreOAuth, OAuthFlowError, OAuthReadError, oauthConfigFromEnv } from './oauth.js';
 
 const criteriaSchema = z.object({ query: z.string().optional(), skus: z.array(z.string()).optional(), names: z.array(z.string()).optional(), terms: z.array(z.string()).optional() });
 const listingSchema = z.object({
@@ -52,7 +52,21 @@ export function buildApp(options: { gateway?: MarketplaceGateway; history?: Hist
   const oauth = options.oauth === undefined ? (() => { const config = oauthConfigFromEnv(); return config ? new MercadoLivreOAuth(config) : null; })() : options.oauth;
   app.register(cors, { origin: ['http://127.0.0.1:5173', 'http://localhost:5173'] });
   app.get('/health', async () => ({ ok: true, mode: 'demo', realWrites: false }));
-  app.get('/api/oauth/mercadolivre/status', async () => ({ enabled: Boolean(oauth), mode: 'test-only', realWrites: false, testAccounts: oauth?.listTestAccounts() ?? [] }));
+  app.get('/api/oauth/mercadolivre/status', async () => ({ enabled: Boolean(oauth), readEnabled: oauth?.readEnabled ?? false, mode: 'test-only', realWrites: false, testAccounts: oauth?.listTestAccounts() ?? [] }));
+  app.post('/api/oauth/mercadolivre/test-read', { logLevel: 'silent' }, async (req, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    if (!oauth) return reply.code(404).send({ message: 'OAuth de teste desabilitado.' });
+    if (req.headers.origin !== 'http://127.0.0.1:5173' || req.headers['x-preco-certo-test-read'] !== '1') {
+      return reply.code(403).send({ message: 'Origem não autorizada.' });
+    }
+    const parsed = z.object({ sellerId: z.string().regex(/^\d+$/) }).safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ message: 'Vendedor de teste inválido.' });
+    try { return await oauth.testRead(parsed.data.sellerId); }
+    catch (error) {
+      if (error instanceof OAuthReadError) return reply.code(error.status).send({ message: error.message });
+      return reply.code(502).send({ message: 'Falha inesperada na leitura de teste.' });
+    }
+  });
   app.post('/api/oauth/mercadolivre/start', { logLevel: 'silent' }, async (req, reply) => {
     if (!oauth) return reply.code(404).send({ message: 'OAuth de teste desabilitado.' });
     if (req.headers.origin !== 'http://127.0.0.1:5173' || req.headers['x-preco-certo-oauth'] !== '1') {
@@ -68,19 +82,24 @@ export function buildApp(options: { gateway?: MarketplaceGateway; history?: Hist
     reply.header('Referrer-Policy', 'no-referrer');
     reply.header('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
     reply.header('Set-Cookie', 'ml_oauth_browser=; HttpOnly; SameSite=Lax; Path=/oauth/mercadolivre/callback; Max-Age=0');
-    if (!oauth) return reply.code(404).type('text/plain').send('OAuth de teste desabilitado.');
+    if (!oauth) return reply.code(404).type('text/plain; charset=utf-8').send('OAuth de teste desabilitado.');
     const params = new URL(req.url, 'http://127.0.0.1:3333').searchParams;
     const code = params.getAll('code');
     const state = params.getAll('state');
     const cookie = req.headers.cookie?.split(';').map(item => item.trim()).find(item => item.startsWith('ml_oauth_browser='))?.slice('ml_oauth_browser='.length) ?? '';
-    if (code.length !== 1 || state.length !== 1 || !code[0] || !state[0] || code[0].length > 2048 || state[0].length > 128 || !cookie) {
-      return reply.code(400).type('text/plain').send('Retorno OAuth inválido. Inicie novamente.');
+    if (code.length !== 1 || state.length !== 1 || !code[0] || !state[0] || code[0].length > 2048 || state[0].length > 128) {
+      return reply.code(400).type('text/plain; charset=utf-8').send('Retorno OAuth inválido. Inicie novamente.');
+    }
+    if (!cookie) {
+      return reply.code(400).type('text/plain; charset=utf-8').send('Cookie desta tentativa OAuth não encontrado. Inicie novamente e conclua a autorização no mesmo navegador e perfil, sem copiar o link de retorno.');
     }
     try {
       await oauth.callback(code[0], state[0], cookie);
       return reply.type('text/html; charset=utf-8').send('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Autorização de teste concluída</title><body><h1>Autorização de teste concluída</h1><p>Os preços continuam em modo DEMO.</p><a href="http://127.0.0.1:5173/">Voltar ao Preço Certo</a></body></html>');
-    } catch {
-      return reply.code(400).type('text/plain').send('Não foi possível concluir a autorização de teste. Inicie novamente.');
+    } catch (error) {
+      return reply.code(400).type('text/plain; charset=utf-8').send(error instanceof OAuthFlowError
+        ? error.message
+        : 'Não foi possível concluir a autorização de teste. Inicie novamente.');
     }
   });
   app.get('/api/accounts', async () => gateway.listAccounts());
